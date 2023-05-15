@@ -39,9 +39,9 @@ def garbageASTAR(start:LatLan, end:LatLan):
             G.add_node(row[0], y=row[1], x=row[2])
 
         # Add edges from ways table
-        cur.execute("SELECT source, target, length FROM ways;")
+        cur.execute("SELECT source, target, length_m FROM ways;")
         for row in cur.fetchall():
-            G.add_edge(row[0], row[1], length=row[2])
+            G.add_edge(row[0], row[1], length=row[2]/1000)
 
         def haversine(lat1, lon1, lat2, lon2):
             R = 6371  # Radius of the earth in km
@@ -76,6 +76,7 @@ def garbageASTAR(start:LatLan, end:LatLan):
             explored = {}
             cur.execute("TRUNCATE algorithm_trace;")
             cur.execute("ALTER SEQUENCE algorithm_trace_id_seq RESTART WITH 1;")
+
             while queue:
                 # Pop the smallest item from queue.
                 _, __, curnode, dist, parent = pop(queue)
@@ -115,12 +116,17 @@ def garbageASTAR(start:LatLan, end:LatLan):
                     else:
                         h = heuristic(neighbor, target)
                     enqueued[neighbor] = ncost, h
-                    print("G(n)=",dist)
-                    print("Current Node",explored[curnode])
-                    print("Neighbor Node",neighbor)
-                    print("Heuristic value for current node to goal node=",h)
-                    
-                    cur.execute("INSERT INTO algorithm_trace(current_node,neighbor_node,g_n,heuristic_value) values(%s,%s,%s,%s);",(0 if explored[curnode] is None else explored[curnode],neighbor,dist,h))
+                    print();
+                    cur.execute("SELECT ST_Y(the_geom), ST_X(the_geom) FROM ways_vertices_pgr WHERE id=%s;", (curnode,))
+                    latNode, lonNode = cur.fetchone()
+                    print("Current Node",explored[curnode]," (", latNode,",",lonNode,")")
+                    cur.execute("SELECT ST_Y(the_geom), ST_X(the_geom) FROM ways_vertices_pgr WHERE id=%s;", (neighbor,))
+                    latNode, lonNode = cur.fetchone()
+                    print("Neighbor Node",neighbor," (", latNode,",",lonNode,")")
+                    print("G(n)=",ncost)
+                    print("H(n)=",h)
+                    print("F(n): ",ncost+h)
+                    cur.execute("INSERT INTO algorithm_trace(current_node,neighbor_node,g_n,heuristic_value,f_n) values(%s,%s,%s,%s,%s);",(0 if explored[curnode] is None else explored[curnode],neighbor,ncost,h,ncost+h))
                     conn.commit()
                     push(queue, (ncost + h, next(c), neighbor, ncost, curnode))
 
@@ -139,7 +145,7 @@ def garbageASTAR(start:LatLan, end:LatLan):
         data = {
                 
                 'type':'LineString',
-                 'coordinates':coordinates
+                'coordinates':coordinates
             }
 
         # Print JSON body

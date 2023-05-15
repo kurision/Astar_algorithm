@@ -15,3 +15,4 @@ async def root(payload:dict=Body(...)):
     end_lan = LatLan(end_coord[0], end_coord[1])
     coordinates = garbageASTAR(start_lan,end_lan)
     return coordinates
+
