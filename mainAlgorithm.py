@@ -74,7 +74,8 @@ def garbageASTAR(start:LatLan, end:LatLan):
             enqueued = {}
             # Maps explored nodes to parent closest to the source.
             explored = {}
-
+            cur.execute("TRUNCATE algorithm_trace;")
+            cur.execute("ALTER SEQUENCE algorithm_trace_id_seq RESTART WITH 1;")
             while queue:
                 # Pop the smallest item from queue.
                 _, __, curnode, dist, parent = pop(queue)
@@ -118,6 +119,7 @@ def garbageASTAR(start:LatLan, end:LatLan):
                     print("Current Node",explored[curnode])
                     print("Neighbor Node",neighbor)
                     print("Heuristic value for current node to goal node=",h)
+                    
                     cur.execute("INSERT INTO algorithm_trace(current_node,neighbor_node,g_n,heuristic_value) values(%s,%s,%s,%s);",(0 if explored[curnode] is None else explored[curnode],neighbor,dist,h))
                     conn.commit()
                     push(queue, (ncost + h, next(c), neighbor, ncost, curnode))
