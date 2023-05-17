@@ -23,12 +23,35 @@ def garbageASTAR(start:LatLan, end:LatLan):
         end_lat = end.latitude
         end_lon = end.longitude
 
+        def haversine(lat1, lon1, lat2, lon2):
+            R = 6371  # Radius of the earth in km
+            dLat = math.radians(lat2 - lat1)
+            dLon = math.radians(lon2 - lon1)
+            a = math.sin(dLat / 2) * math.sin(dLat / 2) + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dLon / 2) * math.sin(dLon / 2)
+            c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+            d = R * c  # Distance in km
+            return d
         # Find nearest nodes to start and end locations
         cur = conn.cursor()
         cur.execute("SELECT id FROM ways_vertices_pgr ORDER BY the_geom <-> ST_SetSRID(ST_Point(%s, %s), 4326) LIMIT 1;", (start_lon, start_lat))
         start_node = cur.fetchone()[0]
         cur.execute("SELECT id FROM ways_vertices_pgr ORDER BY the_geom <-> ST_SetSRID(ST_Point(%s, %s), 4326) LIMIT 1;", (end_lon, end_lat))
         end_node = cur.fetchone()[0]
+
+        cur.execute("SELECT ST_Y(the_geom), ST_X(the_geom) FROM ways_vertices_pgr WHERE id=%s;", (end_node,))
+        lat, lon = cur.fetchone()
+
+        disttest=haversine(end_lat,end_lon,lat,lon)
+        if(disttest>10):
+            error="Target not reachable from source: Reason being the target is not in graph"
+            print(error)
+            data = {
+                    
+                    'type':'LineString',
+                    'coordinates':error
+            }
+            # Print JSON body
+            return data
 
         # Create empty graph
         G = nx.Graph()
@@ -43,14 +66,7 @@ def garbageASTAR(start:LatLan, end:LatLan):
         for row in cur.fetchall():
             G.add_edge(row[0], row[1], length=row[2]/1000)
 
-        def haversine(lat1, lon1, lat2, lon2):
-            R = 6371  # Radius of the earth in km
-            dLat = math.radians(lat2 - lat1)
-            dLon = math.radians(lon2 - lon1)
-            a = math.sin(dLat / 2) * math.sin(dLat / 2) + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dLon / 2) * math.sin(dLon / 2)
-            c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-            d = R * c  # Distance in km
-            return d
+        
             
         
         def heuristic(node1, node2):
@@ -60,9 +76,6 @@ def garbageASTAR(start:LatLan, end:LatLan):
         
         def astar_path(G, source, target, weight):
         
-            if source not in G or target not in G:
-                msg = f"Either source {source} or target {target} is not in G"
-                raise nx.NodeNotFound(msg)
 
             push = heappush
             pop = heappop
@@ -129,8 +142,8 @@ def garbageASTAR(start:LatLan, end:LatLan):
                     cur.execute("INSERT INTO algorithm_trace(current_node,neighbor_node,g_n,heuristic_value,f_n) values(%s,%s,%s,%s,%s);",(0 if explored[curnode] is None else explored[curnode],neighbor,ncost,h,ncost+h))
                     conn.commit()
                     push(queue, (ncost + h, next(c), neighbor, ncost, curnode))
-
-            raise nx.NetworkXNoPath(f"Node {target} not reachable from {source}")
+            eror=f"Node {target} not reachable from {source}"
+            return eror
 
         
         path = astar_path(G, start_node, end_node,weight="length")
@@ -141,13 +154,14 @@ def garbageASTAR(start:LatLan, end:LatLan):
             lat, lon = cur.fetchone()
             coordinates.append((lon, lat))
 
+
         # Print coordinates
         data = {
                 
                 'type':'LineString',
                 'coordinates':coordinates
-            }
-
+        }
+        
         # Print JSON body
         return data
         
