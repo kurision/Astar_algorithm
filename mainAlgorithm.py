@@ -94,14 +94,7 @@ def garbageASTAR(start:LatLan, end:LatLan):
                 # Pop the smallest item from queue.
                 _, __, curnode, dist, parent = pop(queue)
 
-                if curnode == target:
-                    path = [curnode]
-                    node = parent
-                    while node is not None:
-                        path.append(node)
-                        node = explored[node]
-                    path.reverse()
-                    return path
+                
 
                 if curnode in explored:
                     # Do not override the parent of starting node
@@ -142,12 +135,21 @@ def garbageASTAR(start:LatLan, end:LatLan):
                     cur.execute("INSERT INTO algorithm_trace(current_node,neighbor_node,g_n,heuristic_value,f_n) values(%s,%s,%s,%s,%s);",(0 if explored[curnode] is None else explored[curnode],neighbor,ncost,h,ncost+h))
                     conn.commit()
                     push(queue, (ncost + h, next(c), neighbor, ncost, curnode))
+                    if neighbor == target:
+                        path = [neighbor]
+                        node = parent
+                        while node is not None:
+                            path.append(node)
+                            node = explored[node]
+                        path.reverse()
+                        return path
             eror=f"Node {target} not reachable from {source}"
             return eror
 
         
         path = astar_path(G, start_node, end_node,weight="length")
-        
+        print(start_node,end_node)
+        print(path)
         coordinates = []
         for node in path:
             cur.execute("SELECT ST_Y(the_geom), ST_X(the_geom) FROM ways_vertices_pgr WHERE id=%s;", (node,))
